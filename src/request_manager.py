@@ -3,7 +3,7 @@ import os
 from data import constants
 import config_paths
 
-config_file_path = config_paths.get_config_file_path()
+config_file_path = config_paths.get_request_config_file_path()
 
 
 class BaseRequestManager:

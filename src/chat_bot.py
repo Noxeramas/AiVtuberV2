@@ -1,37 +1,138 @@
-import openai
+import json
+
+from openai import OpenAI
 import request_manager
-import requests
-import os
+import config_paths
+import config_manager
+import random
+
+lore_paths = {
+    "bot1": config_paths.get_bot1_lore_file_path(),
+    "bot2": config_paths.get_bot2_lore_file_path()
+}
+client = OpenAI(
+    api_key="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"
+)
+
+MAX_TOKENS = 4096
 
 
 class ChatBotManager:
-    def __init__(self):
-        self.model_choice = 'GPT'
-        self.openai_history = []
+    def __init__(self, lore_file_paths):
+        self.model_choice = "GPT"
+        self.openai_history = ""
         self.ooba_history = {'internal': [], 'visible': []}
+        self.lores = {}
+        self.config = config_manager.load_settings(config_paths.get_config_file_path())
 
-    def chat_bot(self, user_input):
-        if self.model_choice == 'GPT':
+        # Load lore for each bot
+        for bot, path in lore_file_paths.items():
+            with open(path, 'r', encoding='utf-8') as f:
+                self.lores[bot] = f.read()
 
-            # Initialize chat history if it's the first request or empty
-            if not self.openai_history:
-                openai_history = []
+    def chat_bot(self, user_input, bot_id, interaction_type="user"):
+        """
+        :param interaction_type:
+        :param user_input:
+        :param bot_id:
+        :return text_response:
 
+        Generate a response from the chatbot based on user input and bot identity.
+        """
+        if self.model_choice == "GPT":
             # Prepare the request for the GPT model
-            openai_data = request_manager.OpenAIData()
+            openai_data = request_manager.OpenAiRequestManager()
             request = openai_data.request
 
-            # Update the messages with the latest user input and existing chat history
-            messages = []
-            for message in request["messages"]:
-                content = message["content"]
-                content = content.replace("user_input", user_input)
-                content = content.replace("chat_history", openai_history)
-                content = content.replace("lore", lore)
-                messages.append({"role": message["role"], "content": content})
+            # Update the chat history with the latest user input
+            # TODO: This does not work current with openai, i cannot get the history to be acknowledged
+            # self.openai_history += f"\nUser says: {user_input}"
+            # Check if we need to truncate the history to stay within the token limit
+            # self.truncate_history_if_needed(MAX_TOKENS)
+
+            # Create a system message with lore and history
+            lore_system_message = {"role": "system", "content": self.lores[bot_id]}
+            # chat_history_system_message = {"role": "system", "content": self.openai_history[bot_id]}
+
+            message_prefix = f"{bot_id.capitalize()} says:" if interaction_type == "bot" else "User says:"
+
+            # Prepare the messages array
+            messages = [
+                lore_system_message,
+                # chat_history_system_message,
+                {"role": "user", "content": f"{message_prefix} {user_input}"}
+            ]
 
             # Make the API call
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model=request["model"],
                 messages=messages
             )
+
+            text_response = response.choices[0].message.content
+            # Update the chat history for this bot
+            # self.openai_history[bot_id] += f"\n{message_prefix} {text_response}"
+            # Check if we need to truncate the history to stay within the token limit
+            # self.truncate_history_if_needed(bot_id, MAX_TOKENS)
+            return text_response
+
+    def initiate_conversation(self):
+        """
+        Initiates a conversation between the two bots for a specified number of turns.
+        """
+
+        bot_names = {
+            "bot1": self.config["bot1_name"],
+            "bot2": self.config["bot2_name"]
+        }
+
+        # Initialize an empty string to keep track of the conversation history
+        conversation_history = ""
+
+        # Randomly choose which bot starts the conversation
+        next_speaker_key = random.choice(["bot1", "bot2"])
+
+        # Set up a scenario for the bots to interact
+        conversation_context = (
+            f"{self.config['bot1_name']} and {self.config['bot2_name']} are having a conversation."
+        )
+
+        # First bot starts the conversation
+        starter_prompt = f"{bot_names[next_speaker_key]} starts: 'A twitch user just said that they like your art, what do you say?'"
+        print(f"Starter Prompt: {starter_prompt}")
+        print(starter_prompt)
+
+        # Process the starter response
+        response = self.chat_bot(conversation_context + " " + starter_prompt, next_speaker_key, interaction_type="bot")
+        print(response)
+        conversation_history += f" {starter_prompt} {response}"
+
+        # Alternate between bots for the remaining turns
+        for _ in range(random.randint(3, 5) - 1):
+            next_speaker_key = "bot1" if next_speaker_key == "bot2" else "bot2"
+            prompt = f"{bot_names[next_speaker_key]} responds: '{response}'"
+            response = self.chat_bot(conversation_context + conversation_history + prompt, next_speaker_key,
+                                     interaction_type="bot")
+            print(response)
+
+    def truncate_history_if_needed(self, max_tokens):
+        # Estimate the number of tokens for a given string
+        def estimate_tokens(message):
+            return len(message) // 4
+
+        if self.model_choice == 'GPT':
+            # Calculate the total token count of the current history
+            total_tokens = estimate_tokens(self.openai_history)
+
+            # Truncate the history if the total token count exceeds max_tokens
+            while total_tokens > max_tokens:
+                # Find the first newline character and remove up to that point
+                newline_index = self.openai_history.find('\n')
+                if newline_index == -1:
+                    # If no newline character, clear the history
+                    self.openai_history = ""
+                    break
+                else:
+                    # Remove the oldest part of the history up to the newline
+                    self.openai_history = self.openai_history[newline_index + 1:]
+                    total_tokens = estimate_tokens(self.openai_history)
