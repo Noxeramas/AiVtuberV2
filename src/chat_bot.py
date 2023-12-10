@@ -11,7 +11,7 @@ lore_paths = {
     "bot2": config_paths.get_bot2_lore_file_path()
 }
 client = OpenAI(
-    api_key="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"
+    api_key=""
 )
 
 MAX_TOKENS = 4096
