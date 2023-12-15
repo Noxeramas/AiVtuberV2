@@ -1,18 +1,21 @@
-import json
-
+import openai
 from openai import OpenAI
 import request_manager
 import config_paths
-import config_manager
 import random
+
+from config_manager import ConfigManager
+
+config_file_path = config_paths.get_config_file_path()
+config = ConfigManager(config_file_path)
 
 lore_paths = {
     "bot1": config_paths.get_bot1_lore_file_path(),
     "bot2": config_paths.get_bot2_lore_file_path()
 }
-client = OpenAI(
-    api_key=""
-)
+
+openai_api_key = config.get_setting(['api_keys', 'openai'], "")
+client = OpenAI(api_key=openai_api_key)
 
 MAX_TOKENS = 4096
 
@@ -23,8 +26,7 @@ class ChatBotManager:
         self.openai_history = ""
         self.ooba_history = {'internal': [], 'visible': []}
         self.lores = {}
-        self.config = config_manager.load_settings(config_paths.get_config_file_path())
-
+        self.config = config.load_settings()
         # Load lore for each bot
         for bot, path in lore_file_paths.items():
             with open(path, 'r', encoding='utf-8') as f:
@@ -43,7 +45,8 @@ class ChatBotManager:
             # Prepare the request for the GPT model
             openai_data = request_manager.OpenAiRequestManager()
             request = openai_data.request
-
+            if openai_api_key == "":
+                return "Please enter an OpenAI API key in the settings tab."
             # Update the chat history with the latest user input
             # TODO: This does not work current with openai, i cannot get the history to be acknowledged
             # self.openai_history += f"\nUser says: {user_input}"
@@ -63,17 +66,34 @@ class ChatBotManager:
                 {"role": "user", "content": f"{message_prefix} {user_input}"}
             ]
 
+            response = ""
             # Make the API call
-            response = client.chat.completions.create(
-                model=request["model"],
-                messages=messages
-            )
+            try:
+                response = client.chat.completions.create(
+                    model=request["model"],
+                    messages=messages
+                )
+            except openai.APIConnectionError as e:
+                # Handle connection error here
+                print(f"Failed to connect to OpenAI API: {e}")
+                pass
+            except openai.APIError as e:
+                # Handle API error here, e.g. retry or log
+                print(f"OpenAI API returned an API Error: {e}")
+                pass
+            except openai.RateLimitError as e:
+                # Handle rate limit error (we recommend using exponential backoff)
+                print(f"OpenAI API request exceeded rate limit: {e}")
+                pass
 
+            # Process the response into text
             text_response = response.choices[0].message.content
+
             # Update the chat history for this bot
             # self.openai_history[bot_id] += f"\n{message_prefix} {text_response}"
             # Check if we need to truncate the history to stay within the token limit
             # self.truncate_history_if_needed(bot_id, MAX_TOKENS)
+            print(f"{bot_id.capitalize()}: {text_response}")
             return text_response
 
     def initiate_conversation(self):

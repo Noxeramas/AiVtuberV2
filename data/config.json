@@ -1,5 +1,22 @@
 {
-    "model_choice": "GPT",
-    "bot1_name": "Yumi",
-    "bot2_name": "Kyoko"
+    "ai_settings": {
+        "model_choice": "GPT"
+    },
+    "bots": {
+        "bot1_name": "Yumi",
+        "bot2_name": "Kyoko"
+    },
+    "streaming_platforms": {
+        "twitch": {
+            "username": "",
+            "token": ""
+        },
+        "youtube": {
+            "username": "",
+            "token": ""
+        },
+        "openai": {
+            "api_key": ""
+        }
+    }
 }
