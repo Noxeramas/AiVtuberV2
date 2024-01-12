@@ -95,6 +95,8 @@ class ChatBotManager:
             # self.truncate_history_if_needed(bot_id, MAX_TOKENS)
             print(f"{bot_id.capitalize()}: {text_response}")
             return text_response
+        if self.model_choice == "CharacterAI":
+            pass
 
     def initiate_conversation(self):
         """

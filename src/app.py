@@ -75,8 +75,23 @@ def handle_start_twitch_connection(username, token):
         return response
 
 
+def show_stream(option):
+    # Replace this URL with the actual streaming URL
+    stream_url = "https://www.twitch.tv/asukacatai?parent=localhost"
+    embed_html = f'<iframe src="{stream_url}" width="640" height="480" allowfullscreen></iframe>'
+
+    if option == "Show Stream":
+        return embed_html
+    else:
+        return ""
+
+
+# Dropdown options
+stream_options = ["Select Option", "Show Stream", "Hide Stream"]
+
+
 def handle_gradio_inputs():
-    # Load our settings into our object
+    # Load our settings into our state objects
 
     twitch_username_state.value = config_manager.twitch_username
     twitch_token_state.value = config_manager.twitch_token
@@ -89,7 +104,7 @@ def start_gradio():
     with gr.Blocks(theme='step-3-profit/Midnight-Deep') as main:
         with gr.Tab("AI Vtuber"):
             with gr.Row():
-                with gr.Column(scale=1):
+                with gr.Column():
                     # AI Model Selection Dropdown
                     last_model_choice = load_model_choice()
                     model_dropdown = gr.Dropdown(label="Select AI Model",
@@ -116,7 +131,12 @@ def start_gradio():
 
                     start_conversation_button = gr.Button("Start Conversation")
 
-                with gr.Column(scale=1):
+                with gr.Column():
+                    # Dropdown for streaming feed
+                    stream_dropdown = gr.Dropdown(choices=stream_options, label="Stream Options")
+                    stream_feed = gr.HTML(label="Live VTube Studio Feed")
+                    stream_dropdown.change(fn=show_stream, inputs=stream_dropdown, outputs=stream_feed)
+
                     # Display for the most recent bot response and an image output
                     current_response = gr.Textbox(label="Current Bot Response", interactive=False)
                     start_conversation_button.click(
@@ -138,12 +158,13 @@ def start_gradio():
                         twitch_token_input = gr.Textbox(label="Twitch Token", value=twitch_token_state.value,
                                                         placeholder="Enter Twitch token")
                     with gr.Group():
-                        youtube_username_input = gr.Textbox(label="YouTube Username", placeholder="Enter YouTube username")
+                        youtube_username_input = gr.Textbox(label="YouTube Username",
+                                                            placeholder="Enter YouTube username")
                         youtube_token_input = gr.Textbox(label="YouTube Token", placeholder="Enter YouTube token")
 
                 with gr.Column():
                     openai_api_key_input = gr.Textbox(label="OpenAI API Key", value=openai_api_key_state.value,
-                                                  placeholder="Enter OpenAI API key")
+                                                      placeholder="Enter OpenAI API key")
 
             save_all_settings_button.click(
                 fn=save_all_settings,
